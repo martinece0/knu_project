@@ -1,6 +1,10 @@
 import cv2
 import numpy as np
+import pytesseract
+import re
 
+
+# Fonction pour transformer une région rectangulaire
 def four_point_transform(image, pts):
     rect = np.zeros((4, 2), dtype="float32")
     s = np.sum(pts, axis=1)
@@ -31,30 +35,76 @@ def four_point_transform(image, pts):
 
     return warped
 
+
+# Fonction pour supprimer les zones bleues de la plaque
 def remove_blue_areas(plate_image):
-    # Convertir l'image en HSV pour mieux détecter la couleur bleue
     hsv = cv2.cvtColor(plate_image, cv2.COLOR_BGR2HSV)
-
-    # Définir les plages pour détecter le bleu
-    lower_blue = np.array([90, 50, 50])  # Teinte bleue minimale
-    upper_blue = np.array([130, 255, 255])  # Teinte bleue maximale
-
-    # Masque pour détecter les zones bleues
+    lower_blue = np.array([90, 50, 50])
+    upper_blue = np.array([130, 255, 255])
     mask = cv2.inRange(hsv, lower_blue, upper_blue)
-
-    # Trouver les contours des zones bleues
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Récupérer les limites des zones bleues
     for contour in contours:
         x, y, w, h = cv2.boundingRect(contour)
-
-        # Vérifier si le rectangle détecté est une partie latérale bleue
         if h > plate_image.shape[0] * 0.5 and w < plate_image.shape[1] * 0.3:
-            # Supprimer cette zone en la rendant blanche
             plate_image[:, x:x + w] = [255, 255, 255]
 
     return plate_image
+
+
+# Fonction pour renforcer le contraste des lettres de la plaque
+def enhance_plate_contrast(plate_image):
+    gray = cv2.cvtColor(plate_image, cv2.COLOR_BGR2GRAY)
+    alpha = 2  # Contraste
+    beta = 0  # Luminosité
+    enhanced = cv2.convertScaleAbs(gray, alpha=alpha, beta=beta)
+    _, thresholded = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return thresholded
+
+
+# Fonction pour corriger les erreurs spécifiques aux plaques françaises
+def correct_plate_text(text):
+    corrected_text = ""
+    for i, char in enumerate(text):
+        if i >= 2 and i <= 4:
+            if char == 'G':
+                corrected_text += '6'
+            elif char == 'I':
+                corrected_text += '1'
+            elif char == 'B':
+                corrected_text += '8'
+            else:
+                corrected_text += char
+        else:
+            if char == '0':
+                corrected_text += 'O'
+            elif char == 'O':
+                corrected_text += 'D'
+            elif char == '6':
+                corrected_text += 'G'
+            elif char == '8':
+                corrected_text += 'B'
+            else:
+                corrected_text += char
+
+    corrected_text = add_missing_hyphens(corrected_text)
+    return corrected_text
+
+
+# Fonction pour ajouter les tirets manquants
+def add_missing_hyphens(text):
+    if len(text) == 8 and text[2].isdigit():
+        return text[:2] + '-' + text[2:5] + '-' + text[5:]
+    elif len(text) == 7 and text[1].isdigit():
+        return text[:1] + '-' + text[1:4] + '-' + text[4:]
+    return text
+
+
+# Fonction pour vérifier que le texte correspond au format de plaque valide
+def is_valid_plate(text):
+    plate_pattern = r'^([A-Z]{2}-\d{3}-[A-Z]{2}|[A-Z]-\d{3}-[A-Z]{2})$'
+    return re.match(plate_pattern, text) is not None
+
 
 # Charger l'image principale
 image_path = "images/voiture_9.jpg"
@@ -67,9 +117,11 @@ else:
     scale_factor = 2 if width > 1000 else 1.2
     image_resized = cv2.resize(image, (0, 0), fx=scale_factor, fy=scale_factor)
 
+    cv2.imshow("Image originale", image_resized)
+
     gray = cv2.cvtColor(image_resized, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 30, 100)
+    edges = cv2.Canny(blurred, 50, 150)
 
     contours, _ = cv2.findContours(edges.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -78,29 +130,52 @@ else:
     for contour in contours:
         epsilon = 0.02 * cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, epsilon, True)
-        if len(approx) == 4:  # Contours rectangulaires
+        if len(approx) == 4:
             x, y, w, h = cv2.boundingRect(approx)
             aspect_ratio = float(w) / h
             area = cv2.contourArea(contour)
             rect_area = w * h
             extent = area / rect_area
 
-            if 1.5 < aspect_ratio < 6 and 0.3 < extent < 1.2 and area > 500:
+            if 1.5 < aspect_ratio < 6 and 0.3 < extent < 1.2 and area > 1000:
                 if area > largest_area:
                     largest_area = area
                     largest_contour = approx
 
     if largest_contour is not None:
-        # Extraire les coins du rectangle détecté
         pts = largest_contour.reshape(4, 2)
         warped_plate = four_point_transform(image_resized, pts)
 
-        # Enlever les zones bleues
         cleaned_plate = remove_blue_areas(warped_plate)
+        enhanced_plate = enhance_plate_contrast(cleaned_plate)
 
-        # Afficher la plaque corrigée sans bleu
+        # Dessiner un contour vert autour de la plaque sur l'image originale
+        cv2.polylines(image_resized, [largest_contour], isClosed=True, color=(0, 255, 0), thickness=3)
+
+        cv2.imshow("Plaque avec contour vert", image_resized)
         cv2.imshow("Plaque nettoyée", cleaned_plate)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-    else:
-        print("Aucune plaque détectée.")
+        cv2.imshow("Plaque avec contraste renforcé", enhanced_plate)
+
+        custom_config = r'--psm 7 -c tessedit_char_whitelist=ABCDEFGHJKLMNPQRSTVWXYZ0123456789'
+        plate_text = pytesseract.image_to_string(enhanced_plate, config=custom_config)
+
+        plate_text = correct_plate_text(plate_text)
+
+        # Nouveau code pour l'affichage dynamique
+        print("\n" + "=" * 50)
+        print(" 🚗 License Plate Detection Result 🚗 ")
+        print("=" * 50)
+
+        print(f"\nDetected Text: {plate_text.strip()}")
+
+        if is_valid_plate(plate_text.strip()):
+            print("\n✅ Valid Plate Detected!")
+            print(f"   Plate Number: {plate_text.strip()}")
+        else:
+            print("\n❌ Invalid Plate Detected.")
+            print(f"   Raw Detected Text: {plate_text.strip()}")
+
+        print("\n" + "=" * 50)
+
+cv2.waitKey(0)
+cv2.destroyAllWindows()
