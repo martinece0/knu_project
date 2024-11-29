@@ -1,8 +1,4 @@
-Voici un **README.md** bien structuré pour ton projet de détection et de lecture de plaques d'immatriculation, en suivant les instructions fournies :
-
----
-
-# License Plate Detection and Recognition System  
+# French License Plate Detection and Recognition System  
 
 ## 📋 Project Overview  
 This project aims to develop a system for detecting and reading French license plates from images using Python, OpenCV, and Tesseract OCR. The project is designed to:  
@@ -26,12 +22,10 @@ The need for efficient and accurate license plate recognition is essential in tr
 
 ### File Structure  
 ```
-├── images/                 # Test images (e.g., voiture_9.jpg)
-├── src/
-│   ├── main.py             # Main script for detection and recognition
-│   ├── utils.py            # Utility functions for preprocessing
-├── requirements.txt        # Python dependencies
+├── .idea/                  # IDE configuration files (optional, specific to PyCharm)
+├── images/                 # Test images for detection
 ├── README.md               # Project documentation
+├── main.py                 # Main script for detection and recognition
 ```
 
 ### Dependencies  
@@ -98,10 +92,43 @@ Run the detection script:
 python src/main.py
 ```
 
-### Example Image  
-Place your test images in the `images/` directory and modify the `image_path` variable in `main.py` to point to your desired test file.  
+Merci pour la précision ! Je vais ajuster la partie "Utilisation" dans le README pour refléter cette simplicité. Voici la mise à jour :
 
 ---
+
+### ⚙️ Installation and Usage  
+
+#### Installation  
+1. Clone this repository:  
+   ```bash
+   git clone https://github.com/your-username/license-plate-recognition.git
+   cd license-plate-recognition
+   ```
+2. Install the required dependencies:  
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Ensure Tesseract OCR is installed on your system. For macOS, use:  
+   ```bash
+   brew install tesseract
+   ```
+
+#### Usage  
+1. uses one of the images in the `images/` folder. The repository includes **28 test images** to try. 
+
+
+2. Open the `main.py` file and set the `image_path` variable to point to the desired test image:
+   ```python
+   image_path = "images/voiture_1.jpg"  # Example test image
+   ```
+3. Run the program:
+   ```bash
+   python main.py
+   ```
+4. The program will display the detected license plate with contours, the preprocessed plate, and the recognized text directly in the console.
+
+---
+
 
 ## 📚 References and Documentation  
 
@@ -133,5 +160,3 @@ We welcome contributions to improve this project!
 - **Real-Time Processing:** Develop a real-time system using video input.  
 
 ---
-
-Feel free to reach out with questions or suggestions! 🚀
